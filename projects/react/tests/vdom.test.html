@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>P1-1 VDOM 단위 테스트</title>
+</head>
+<body>
+  <h1>P1-1 VDOM 단위 테스트</h1>
+  <p id="summary">실행 대기 중</p>
+  <ol id="results"></ol>
+  <script type="module">
+    import { h, domToVdom, createElement } from "../src/core/vdom.js";
+
+    const results = document.querySelector("#results");
+    const summary = document.querySelector("#summary");
+    let passed = 0;
+
+    function assert(condition, message) {
+      if (!condition) throw new Error(message);
+    }
+
+    function assertValue(actual, expected) {
+      assert(JSON.stringify(actual) === JSON.stringify(expected),
+        `기대값 ${JSON.stringify(expected)}, 실제값 ${JSON.stringify(actual)}`);
+    }
+
+    function test(name, run) {
+      const result = document.createElement("li");
+      try {
+        run();
+        passed++;
+        result.textContent = `PASS — ${name}`;
+      } catch (error) {
+        result.textContent = `FAIL — ${name}: ${error.message}`;
+      }
+      results.appendChild(result);
+    }
+
+    test("h는 속성과 자식 순서를 보존하고 빈 요소도 생성한다", () => {
+      assertValue(h("br"), { type: "br", props: {}, children: [] });
+      assertValue(h("div", { id: "box" }, "앞", h("br"), "뒤"), {
+        type: "div", props: { id: "box" },
+        children: ["앞", { type: "br", props: {}, children: [] }, "뒤"]
+      });
+    });
+
+    test("중첩 요소, 여러 형제, HTML 속성을 읽고 원본 DOM을 보존한다", () => {
+      const box = document.createElement("section");
+      box.innerHTML = '<p id="box" class="card" data-note="">앞<span>A</span>뒤</p><br>';
+      const before = box.cloneNode(true);
+      const firstChild = box.firstChild;
+      assertValue(domToVdom(box), {
+        type: "section", props: {}, children: [
+          { type: "p", props: { id: "box", class: "card", "data-note": "" },
+            children: ["앞", { type: "span", props: {}, children: ["A"] }, "뒤"] },
+          { type: "br", props: {}, children: [] }
+        ]
+      });
+      assert(box.isEqualNode(before) && box.firstChild === firstChild, "입력 DOM이 변경됨");
+    });
+
+    test("일반 텍스트, 공백만 있는 텍스트, 빈 텍스트 노드를 구분한다", () => {
+      const box = document.createElement("div");
+      for (const value of ["앞", " \n\t", ""]) {
+        const text = document.createTextNode(value);
+        assertValue(domToVdom(text), value);
+        box.appendChild(text);
+      }
+      assertValue(domToVdom(box).children, ["앞", " \n\t", ""]);
+    });
+
+    test("주석을 건너뛰고 앞뒤 형제의 순서를 보존한다", () => {
+      const box = document.createElement("div");
+      box.innerHTML = "앞<!-- 생략 --><b>중간</b>뒤";
+      assertValue(domToVdom(box.childNodes[1]), null);
+      assertValue(domToVdom(box).children, [
+        "앞", { type: "b", props: {}, children: ["중간"] }, "뒤"
+      ]);
+      assert(box.childNodes.length === 4, "원본 주석이 삭제됨");
+    });
+
+    test("지원하지 않는 DocumentFragment와 Document는 null로 반환한다", () => {
+      assertValue(domToVdom(document.createDocumentFragment()), null);
+      assertValue(domToVdom(document), null);
+    });
+
+    test("createElement는 마크업처럼 보이는 문자열도 텍스트로 생성한다", () => {
+      const text = createElement("<b>그대로</b>");
+      assert(text.nodeType === Node.TEXT_NODE && text.data === "<b>그대로</b>", "텍스트 변환 오류");
+    });
+
+    test("DOM → VDOM → DOM 왕복 시 속성, 자식 순서와 공백이 일치한다", () => {
+      const original = document.createElement("article");
+      original.innerHTML = '<p id="box" class="item" data-id="7"> <b>A</b> 뒤</p><hr>';
+      original.appendChild(document.createTextNode(""));
+      const copy = createElement(domToVdom(original));
+      assert(copy !== original && original.isEqualNode(copy), "왕복 결과의 DOM 구조가 다름");
+    });
+
+    const total = results.children.length;
+    summary.textContent = `${passed}/${total} PASS`;
+    summary.dataset.status = passed === total ? "pass" : "fail";
+  </script>
+</body>
+</html>
