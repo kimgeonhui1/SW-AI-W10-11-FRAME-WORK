@@ -7,11 +7,24 @@
   <link rel="stylesheet" href="./src/styles/style.css" />
 </head>
 <body>
-  <div id="real-area"></div>
-  <div id="test-area"></div>
-  <button id="patch-btn">Patch</button>
-  <button id="undo-btn">뒤로가기</button>
-  <button id="redo-btn">앞으로가기</button>
+  <h1>Phase 1 · Virtual DOM / Diff / Patch</h1>
+  <div class="toolbar">
+    <button id="patch-btn">Patch</button>
+    <button id="undo-btn">뒤로가기</button>
+    <button id="redo-btn">앞으로가기</button>
+  </div>
+  <div class="areas">
+    <section>
+      <h2>실제 영역</h2>
+      <div id="real-area"></div>
+    </section>
+    <section>
+      <h2>테스트 영역 (HTML을 고친 뒤 Patch)</h2>
+      <div id="test-area"><textarea id="test-input" spellcheck="false"></textarea></div>
+    </section>
+  </div>
+  <h2>마지막 diff 결과</h2>
+  <pre id="patch-log"></pre>
   <script type="module" src="./src/phase1/main.js"></script>
 </body>
 </html>
