@@ -345,6 +345,25 @@ test("createElement: select의 value prop", () => {
   assertEqual(sel.value, "b");
 });
 
+// [회귀] value: undefined 를 받은 select가 el.value = "" 로 선택이 전부 풀리던 문제
+test("createElement: select의 value가 undefined면 option 선택을 유지", () => {
+  const first = createElement(h("select", { value: undefined }, h("option", { value: "a" }, "A")));
+  const marked = createElement(h("select", { value: null }, h("option", { value: "a" }, "A"), h("option", { value: "b", selected: true }, "B")));
+  assertEqual([first.value, marked.value], ["a", "b"]);
+});
+
+// [회귀] value를 max보다 먼저 넣으면 기본 max(100)에 걸려 값이 잘리던 문제
+test("createElement: range input은 value 키가 앞에 있어도 max 적용 후 값 설정", () => {
+  const range = createElement(h("input", { type: "range", value: "300", max: "500" }));
+  assertEqual(range.value, "300");
+});
+
+// [회귀] multiple을 자식보다 늦게 넣으면 selected option이 마지막 하나만 남던 문제
+test("createElement: select multiple의 selected option이 모두 선택", () => {
+  const sel = createElement(h("select", { multiple: true }, h("option", { selected: true }, "a"), h("option", null, "b"), h("option", { selected: true }, "c")));
+  assertEqual([...sel.selectedOptions].map((o) => o.value), ["a", "c"]);
+});
+
 // ======================================================================
 // setProp / removeProp 테스트 : patch에서 속성을 "바꾸고 지울 때" 올바른지
 // ======================================================================

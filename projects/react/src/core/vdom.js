@@ -312,6 +312,8 @@ export function createElement(vnode) {
   // 자식을 "먼저" 만들어 붙인다 (children이 없으면 빈 배열로 대비)
   // 순서가 중요한 이유: <select>의 value는 <option>들이 붙어 있어야 고를 수 있다.
   // 속성을 먼저 넣으면 아직 option이 없어서 select.value = "b"가 무시된다.
+  // 단, multiple은 예외로 먼저 넣는다. 단일 select 상태에서 selected option을 붙이면 마지막 하나만 선택으로 남기 때문이다.
+  if (vnode.props?.multiple) setProp(el, "multiple", vnode.props.multiple);
   for (const child of vnode.children ?? []) {
     // 자식도 createElement로 실제 DOM을 만들고(재귀), el의 마지막 자식으로 붙인다
     el.appendChild(createElement(child));
@@ -319,10 +321,14 @@ export function createElement(vnode) {
 
   // 그다음 속성을 넣는다 (props가 없을 수도 있으니 빈 객체로 대비)
   // Object.entries(obj): { id: "a", title: "b" } → [["id","a"], ["title","b"]] 처럼 [이름, 값] 쌍 배열로 바꾼다
-  for (const [name, value] of Object.entries(vnode.props ?? {})) {
+  // value는 "맨 마지막"에 넣는다. min / max / step / multiple 같은 속성이 먼저 적용돼야 값이 잘리거나 풀리지 않는다.
+  // 예) { type: "range", value: "300", max: "500" } 을 순서대로 넣으면 기본 max(100) 때문에 300이 100으로 잘린다
+  const props = vnode.props ?? {};
+  for (const [name, value] of Object.entries(props)) {
     // 속성 하나를 요소에 적용 (종류별 처리 규칙은 아래 setProp 참고)
-    setProp(el, name, value);
+    if (name !== "value") setProp(el, name, value);
   }
+  if ("value" in props) setProp(el, "value", props.value);
 
   // 속성과 자식이 모두 채워진 완성된 요소를 돌려준다
   return el;
@@ -370,6 +376,17 @@ export function setProp(el, name, value, oldValue) {
       if (el.tagName === "INPUT") {
         if (value == null || value === false) el.removeAttribute("value");
         else el.setAttribute("value", String(value));
+      }
+      // select는 defaultValue가 없어서 아래 줄이 el.value = ""가 되고 선택이 전부 풀린다.
+      // 그래서 value가 없으면 "처음부터 그렸을 때(createElement)와 같은 선택"으로 맞춘다. (브라우저 기본 규칙)
+      //   1) 각 option을 selected 속성(defaultSelected)대로 되돌린다 → multiple이면 여러 개, 아니면 마지막 표시가 남는다
+      //   2) 단일 select인데 아무것도 안 골라졌으면 disabled가 아닌 첫 option을 고른다
+      // 처음 그릴 때도 이 결과는 브라우저가 이미 골라 둔 상태와 같아서, 언제 호출돼도 안전하다.
+      if (el.tagName === "SELECT" && (value == null || value === false)) {
+        const options = [...el.options];
+        for (const o of options) o.selected = o.defaultSelected;
+        if (!el.multiple && el.selectedIndex === -1) el.selectedIndex = options.findIndex((o) => !o.disabled);
+        return;
       }
       // 값이 없으면 초기값(defaultValue)으로 되돌린다. textarea라면 자식 텍스트로 돌아간다
       el.value = value == null || value === false ? (el.defaultValue ?? "") : String(value);
